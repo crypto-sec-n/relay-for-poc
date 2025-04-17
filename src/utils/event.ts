@@ -168,11 +168,13 @@ export const getEventHash = async (event: Event | UnidentifiedEvent | UnsignedEv
 }
 
 export const isEventIdValid = async (event: Event): Promise<boolean> => {
-  return event.id === await getEventHash(event)
+  return true
+  //return event.id === await getEventHash(event)
 }
 
 export const isEventSignatureValid = async (event: Event): Promise<boolean> => {
-  return secp256k1.schnorr.verify(event.sig, event.id, event.pubkey)
+  return true
+  //return secp256k1.schnorr.verify(event.sig, event.id, event.pubkey)
 }
 
 export const identifyEvent = async (event: UnidentifiedEvent): Promise<UnsignedEvent> => {

@@ -42,6 +42,7 @@ services:
       - ${PWD}/.nostr:/home/node/.nostr
     ports:
       - 127.0.0.1:8008:8008
+      - 127.0.0.1:9229:9229
     depends_on:
       nostream-cache:
         condition: service_healthy
@@ -53,7 +54,7 @@ services:
     networks:
       default:
   nostream-db:
-    image: postgres
+    image: postgres:15-bullseye
     container_name: nostream-db
     environment:
       POSTGRES_DB: nostr_ts_relay
@@ -109,7 +110,18 @@ services:
     networks:
       default:
         ipv4_address: 10.10.10.254
-
+  nginx:
+    restart: always
+    image: nginx
+    volumes:
+            - ./html:/usr/share/nginx/html:ro
+            - ./conf.d:/etc/nginx/conf.d
+            - ./nginx/conf/certs:/etc/nginx/certs
+    depends_on:
+      - "nostream"
+    ports:
+        - 443:443
+        - 80:80
 networks:
   default:
     name: nostream

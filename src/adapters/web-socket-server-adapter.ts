@@ -78,6 +78,7 @@ export class WebSocketServerAdapter extends WebServerAdapter implements IWebSock
       if (!webSocketAdapter) {
         return
       }
+      console.log(event)
       webSocketAdapter.emit(WebSocketAdapterEvent.Event, event)
     })
   }

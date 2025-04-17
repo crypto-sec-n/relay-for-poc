@@ -80,6 +80,8 @@ export class EventMessageHandler implements IMessageHandler {
   }
 
   protected canAcceptEvent(event: Event): string | undefined {
+    console.log("---start----canAcceptEvent----")
+    console.log(event)
     const now = Math.floor(Date.now()/1000)
 
     const limits = this.settings().limits?.event ?? {}

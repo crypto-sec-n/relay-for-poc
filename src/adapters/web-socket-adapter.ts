@@ -103,6 +103,7 @@ export class WebSocketAdapter extends EventEmitter implements IWebSocketAdapter 
   public onBroadcast(event: Event): void {
     this.webSocketServer.emit(WebSocketServerAdapterEvent.Broadcast, event)
     if (cluster.isWorker && typeof process.send === 'function') {
+      console.log(event)
       process.send({
         eventName: WebSocketServerAdapterEvent.Broadcast,
         event,
@@ -116,6 +117,7 @@ export class WebSocketAdapter extends EventEmitter implements IWebSocketAdapter 
         filters.map(isEventMatchingFilter).some((isMatch) => isMatch(event))
       ) {
         debug('sending event to client %s: %o', this.clientId, event)
+        console.log(event)
         this.sendMessage(createOutgoingEventMessage(subscriptionId, event))
       }
     })
