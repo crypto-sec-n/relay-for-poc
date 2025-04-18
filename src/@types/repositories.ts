@@ -41,3 +41,11 @@ export interface IUserRepository {
   upsert(user: Partial<User>, client?: DatabaseClient): Promise<number>
   getBalanceByPubkey(pubkey: Pubkey, client?: DatabaseClient): Promise<bigint>
 }
+
+export interface IMITMRepository {
+  create(event: Event): Promise<number>
+  upsert(event: Event): Promise<number>
+  findByFilters(filters: SubscriptionFilter[]): IQueryResult<DBEvent[]>
+  insertStubs(pubkey: string, eventIdsToDelete: EventId[]): Promise<number>
+  deleteByPubkeyAndIds(pubkey: Pubkey, ids: EventId[]): Promise<number>
+}

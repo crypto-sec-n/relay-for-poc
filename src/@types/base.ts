@@ -3,6 +3,7 @@ import { SocketAddress } from 'net'
 
 export type EventId = string
 export type Pubkey = string
+export type PrivKey = string
 export type TagName = string
 export type Signature = string
 export type Tag = TagBase & string[]

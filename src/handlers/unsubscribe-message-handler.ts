@@ -9,6 +9,9 @@ export class UnsubscribeMessageHandler implements IMessageHandler {
   ) { }
 
   public async handleMessage(message: UnsubscribeMessage): Promise<void> {
+
+    //console.log('unsubscribeMsg')
+    //console.log(message)
     this.webSocket.emit(WebSocketAdapterEvent.Unsubscribe, message[1])
   }
 }
