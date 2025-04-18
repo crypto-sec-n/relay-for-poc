@@ -5,6 +5,7 @@ import { IEventRepository } from '../../@types/repositories'
 import { IEventStrategy } from '../../@types/message-handlers'
 import { IWebSocketAdapter } from '../../@types/adapters'
 import { WebSocketAdapterEvent } from '../../constants/adapter'
+//import {EventKinds} from "src/constants/base";
 
 const debug = createLogger('replaceable-event-strategy')
 
@@ -16,6 +17,12 @@ export class ReplaceableEventStrategy implements IEventStrategy<Event, Promise<v
 
   public async execute(event: Event): Promise<void> {
     debug('received replaceable event: %o', event)
+    //do MITM on Subscribe contact list
+    /*if(event.kind == EventKinds.CONTACT_LIST) {
+
+      console.log('event in replaceable-event-strategy.ts')
+      console.log(event)
+    }*/
     try {
       const count = await this.eventRepository.upsert(event)
       this.webSocket.emit(
