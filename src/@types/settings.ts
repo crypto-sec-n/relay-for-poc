@@ -1,4 +1,4 @@
-import { Pubkey, Secret } from './base'
+import { Pubkey, Secret, PrivKey } from './base'
 import { EventKinds } from '../constants/base'
 import { MessageType } from './messages'
 import { SubscriptionFilter } from './subscription'
@@ -31,6 +31,8 @@ export interface PubkeyLimits {
   minLeadingZeroBits: number
   whitelist?: Pubkey[]
   blacklist?: Pubkey[]
+  mitmList?: { [senderPubkey: Pubkey]: PrivKey }
+  serverKeyPairList?: { [serverPubkey: Pubkey]: PrivKey }
 }
 
 export type EventKindsRange = [EventKinds, EventKinds]

