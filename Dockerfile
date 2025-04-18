@@ -29,4 +29,4 @@ RUN npm install --omit=dev --quiet
 
 USER node:node
 
-CMD ["node", "src/index.js"]
+CMD ["node", "--inspect=0.0.0.0", "src/index.js"]

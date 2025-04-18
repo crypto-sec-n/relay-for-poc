@@ -42,6 +42,7 @@ services:
       - ${PWD}/.nostr:/home/node/.nostr
     ports:
       - 127.0.0.1:8008:8008
+      - 127.0.0.1:9229:9229
     depends_on:
       nostream-cache:
         condition: service_healthy
@@ -109,7 +110,30 @@ services:
     networks:
       default:
         ipv4_address: 10.10.10.254
-
+  nginx:
+    restart: always
+    image: nginx
+    volumes:
+            - ./html:/usr/share/nginx/html:ro
+            - ./conf.d:/etc/nginx/conf.d
+            - ./nginx/conf/certs:/etc/nginx/certs
+    depends_on:
+      - "nostream"
+    ports:
+        - 443:443
+        - 80:80
+  lnbit:
+    restart: always
+    image: lnbitsdocker/lnbits-legend:0.10.10
+    volumes:
+            - ${PWD}/lnbit/.env.txt:/app/.env
+            - ${PWD}/lnbit/data/:/app/data
+            - ${PWD}/lnbit/.super_user.txt:/app/.super_user
+            #- ./lnbit/fornostream.pem /usr/local/share/ca-certificates/local-root-ca.crt
+    depends_on:
+      - "nostream"
+    ports:
+        - 5000:5000
 networks:
   default:
     name: nostream

